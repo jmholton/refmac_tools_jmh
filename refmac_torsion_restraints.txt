@@ -1,0 +1,109 @@
+restr tors include link TRANS name psi   value 160 sigma 30 period 2
+restr tors include link TRANS name omega value 180 sigma 5 period 0
+restr tors include link TRANS name phi   value  60 sigma 20 period 3
+restr tors include resi SER name chi1 value 180 sigma 15 period 3
+restr tors include resi CYS name chi1 value 180 sigma 15 period 3
+restr tors include resi CYS name chi2 value 180 sigma 15 period 3
+restr tors include resi MET name chi1 value 180 sigma 15 period 3
+restr tors include resi MET name chi2 value 180 sigma 15 period 3
+restr tors include resi MET name chi3 value 180 sigma 15 period 3
+restr tors include resi THR name chi1 value 180 sigma 15 period 3
+restr tors include resi VAL name chi1 value 180 sigma 15 period 3
+restr tors include resi LEU name chi1 value 180 sigma 15 period 3
+restr tors include resi LEU name chi2 value 180 sigma 15 period 3
+restr tors include resi ILE name chi1 value 180 sigma 15 period 3
+restr tors include resi ILE name chi2 value 180 sigma 15 period 3
+restr tors include resi ASP name chi1 value 180 sigma 15 period 3
+restr tors include resi ASP name chi2 value   0 sigma 30 period 2
+restr tors include resi ASN name chi1 value 180 sigma 15 period 3
+restr tors include resi ASN name chi2 value   0 sigma 30 period 2
+restr tors include resi GLU name chi1 value 180 sigma 15 period 3
+restr tors include resi GLU name chi2 value 180 sigma 15 period 3
+restr tors include resi GLU name chi3 value   0 sigma 30 period 2
+restr tors include resi GLN name chi1 value 180 sigma 15 period 3
+restr tors include resi GLN name chi2 value 180 sigma 15 period 3
+restr tors include resi GLN name chi3 value   0 sigma 30 period 2
+restr tors include resi LYS name chi1 value 180 sigma 15 period 3
+restr tors include resi LYS name chi2 value 180 sigma 15 period 3
+restr tors include resi LYS name chi3 value 180 sigma 15 period 3
+restr tors include resi LYS name chi4 value 180 sigma 15 period 3
+restr tors include resi ARG name chi1 value  60 sigma 15 period 3
+restr tors include resi ARG name chi2 value  60 sigma 15 period 3
+restr tors include resi ARG name chi3 value 180 sigma 15 period 3
+restr tors include resi ARG name chi4 value   0 sigma 15 period 4
+restr tors include resi ARG name chi5 value   0 sigma 10 period 2
+restr tors include resi HIS name chi1 value 180 sigma 15 period 3
+restr tors include resi HIS name chi2 value  90 sigma 20 period 2
+restr tors include resi PHE name chi1 value 180 sigma 15 period 3
+restr tors include resi PHE name chi2 value  90 sigma 20 period 2
+restr tors include resi TYR name chi1 value 180 sigma 15 period 3
+restr tors include resi TYR name chi2 value  90 sigma 20 period 2
+restr tors include resi TRP name chi1 value 180 sigma 15 period 3
+restr tors include resi TRP name chi2 value  90 sigma 20 period 2
+
+
+
+cat ${CLIBD}/monomers/list/mon_lib_list.cif |\
+awk '/chem_link_tor/{++p} NF==0{p=0}\
+  /^ TRANS/ && p{\
+   print "restr tors include link",$1,"name",$2,"value",$11,"sigma",$12,"period",$13}' 
+
+foreach TLC ( SER CYS MET THR VAL LEU ILE ASP ASN GLU GLN LYS ARG HIS PHE TYR TRP )
+ set t = `echo $TLC | awk '{print tolower(substr($1,1,1))}'`
+cat ${CLIBD}/monomers/${t}/${TLC}.cif |\
+awk -v TLC=$TLC '/_tor/{++p} /^loop_/{p=0}\
+  $1==TLC && p && $2~/^chi/{\
+   print "restr tors include resi",$1,"name",$2,"value",$7+0,"sigma",$8+0,"period",$9}' 
+
+end
+
+
+
+refmac5 xyzin refmacout.pdb xyzout refminout.pdb << EOF | tee refmac_ideal.log 
+refi type ideal
+restr tors include link TRANS name psi   value 160 sigma 30 period 2
+restr tors include link TRANS name omega value 180 sigma 5 period 0
+restr tors include link TRANS name phi   value  60 sigma 20 period 3
+restr tors include resi SER name chi1 value 180 sigma 15 period 3
+restr tors include resi CYS name chi1 value 180 sigma 15 period 3
+restr tors include resi CYS name chi2 value 180 sigma 15 period 3
+restr tors include resi MET name chi1 value 180 sigma 15 period 3
+restr tors include resi MET name chi2 value 180 sigma 15 period 3
+restr tors include resi MET name chi3 value 180 sigma 15 period 3
+restr tors include resi THR name chi1 value 180 sigma 15 period 3
+restr tors include resi VAL name chi1 value 180 sigma 15 period 3
+restr tors include resi LEU name chi1 value 180 sigma 15 period 3
+restr tors include resi LEU name chi2 value 180 sigma 15 period 3
+restr tors include resi ILE name chi1 value 180 sigma 15 period 3
+restr tors include resi ILE name chi2 value 180 sigma 15 period 3
+restr tors include resi ASP name chi1 value 180 sigma 15 period 3
+restr tors include resi ASP name chi2 value   0 sigma 30 period 2
+restr tors include resi ASN name chi1 value 180 sigma 15 period 3
+restr tors include resi ASN name chi2 value   0 sigma 30 period 2
+restr tors include resi GLU name chi1 value 180 sigma 15 period 3
+restr tors include resi GLU name chi2 value 180 sigma 15 period 3
+restr tors include resi GLU name chi3 value   0 sigma 30 period 2
+restr tors include resi GLN name chi1 value 180 sigma 15 period 3
+restr tors include resi GLN name chi2 value 180 sigma 15 period 3
+restr tors include resi GLN name chi3 value   0 sigma 30 period 2
+restr tors include resi LYS name chi1 value 180 sigma 15 period 3
+restr tors include resi LYS name chi2 value 180 sigma 15 period 3
+restr tors include resi LYS name chi3 value 180 sigma 15 period 3
+restr tors include resi LYS name chi4 value 180 sigma 15 period 3
+restr tors include resi ARG name chi1 value  60 sigma 15 period 3
+restr tors include resi ARG name chi2 value  60 sigma 15 period 3
+restr tors include resi ARG name chi3 value 180 sigma 15 period 3
+restr tors include resi ARG name chi4 value   0 sigma 15 period 4
+restr tors include resi ARG name chi5 value   0 sigma 10 period 2
+restr tors include resi HIS name chi1 value 180 sigma 15 period 3
+restr tors include resi HIS name chi2 value  90 sigma 20 period 2
+restr tors include resi PHE name chi1 value 180 sigma 15 period 3
+restr tors include resi PHE name chi2 value  90 sigma 20 period 2
+restr tors include resi TYR name chi1 value 180 sigma 15 period 3
+restr tors include resi TYR name chi2 value  90 sigma 20 period 2
+restr tors include resi TRP name chi1 value 180 sigma 15 period 3
+restr tors include resi TRP name chi2 value  90 sigma 20 period 2
+EOF
+
+
+
