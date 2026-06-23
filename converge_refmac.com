@@ -1,11 +1,11 @@
 #! /bin/tcsh -f
 #    
-#    auto-converging refmac5 script        -James Holton     11-29-23
+#    auto-converging refmac5 script        -James Holton     4-26-26
 #
 set pdbin = starthere.pdb
 set mtzfile = ./refme.mtz
 set libfiles = ""
-set tempfile = tempfile
+set tempfile = shm
 set refmac5 = refmac5
 
 set CONVERGE
@@ -24,7 +24,6 @@ set max_runtime = 0
 set user_scale = ""
 set xray_weight = ""
 set weight_matrix = 0.5
-rm -f ${tempfile}shifts
 
 # parameters for damping the PDB manually
 # maximum allowed changes
@@ -38,6 +37,9 @@ set user_minB = ""
 set hinudge = 10
 set lonudge = 4
 
+# max distance between negative peak and atom to be a pruning candidate
+set prune_dist = 0.4
+
 # a few command-line options
 foreach arg ( $* )
     if("$arg" =~ *.pdb) set pdbin = "$arg"
@@ -45,7 +47,7 @@ foreach arg ( $* )
     if("$arg" =~ *.cif) set libfiles = ( $libfiles "$arg" )
     if("$arg" =~ *.lib) set libfiles = ( $libfiles "$arg" )
     if(-x "$arg") then
-        set test = `echo | $arg |& awk '/REFMAC/{print 1}'`
+        set test = `echo | $arg |& awk '/REFMAC/{print 1;exit}'`
         if("$test" == "1") then
             set refmac5 = $arg
             echo "refmac executable: $refmac5"
@@ -84,6 +86,7 @@ foreach arg ( $* )
        set PRUNE_LOWOCC
        set lowocc = `echo $arg | awk -F "=" '{print $NF+0}'`
        if("$lowocc" == "0") set lowocc = 0.009
+       echo "DEBUG: will prune low occs < $lowocc"
     endif
     if("$arg" =~ maxdXYZ=*) set maxdXYZ = "$arg"
     if("$arg" =~ maxdocc=*) set maxdocc = "$arg"
@@ -144,11 +147,15 @@ if(-w /dev/shm) then
 endif
 if(! -e "$CCP4_SCR") mkdir -p $CCP4_SCR
 
+if(-e ${tempfile}shifts) then
+  rm -f ${tempfile}shifts
+endif
+
 # see if we are alone here?
 set pwd = `pwd`
 set mypid = $$
 foreach retry ( 1 2 3 )
-  set pids = `ps -fu $USER | tee debug1.log | egrep converge_refmac.com | egrep -v " egrep -v | grep -E |^UID" | awk -v pid=$mypid '$2!=pid && ! ( / srun / && / converge_refmac.com/ ) {print "/proc/"$2"/cwd"}'`
+  set pids = `ps -fu $USER | tee debug1.log | egrep converge_refmac.com | egrep -v " egrep -v | grep -E |^UID" | awk -v pid=$mypid '$2==pid{next} / srun | eval /{next} {print "/proc/"$2"/cwd"}'`
 
   set otherpid = `ls -l $pids |& tee debug2.log | awk -v pwd="$pwd" '$NF==pwd{print}' | awk -F "/" '{print $3}'`
   if( "$otherpid" == "") break
@@ -332,6 +339,7 @@ set trials_since_start = 0
 set damp_step = 0.5
 set undamp_step = 0.2
 if(! $?APPEND) then
+    echo "DEBUG: clearing old logs"
     rm -f refmac_shifts.txt
     rm -f refmac_Rplot.txt
     rm -f refmac_scales.txt
@@ -448,7 +456,7 @@ EOF-refmac
         cp -p refmacout.pdb refmacout.mtz refmac_*.txt refmac_*.log ./checkpoint/
     endif
 
-    set n = `tail -1 refmac_scales.log |& awk '{print $1+1}'`
+    set n = `tail -1 refmac_scales.log |& awk 'END{print $1+1}'`
 
     # extract twin statistics
     tac ${tempfile}.log |&\
@@ -459,6 +467,7 @@ EOF-refmac
          $2*=100;$3*=100;$1="";stats=$0;f=0}\
         END{if(! p) print stats,funk+0,vdw}' >! ${tempfile}stats.txt
     set stats = `cat ${tempfile}stats.txt`
+    # 
     tac ${tempfile}.log |&\
     awk '/^Twin fractions /{print $4,$5,$6,$7,$8,$9,$10,$11,$12,$13;exit}' |\
     cat >! ${tempfile}twinstats.txt
@@ -466,6 +475,8 @@ EOF-refmac
     echo "$n $stats $twinstats "
     touch refmac_Rplot.txt
     echo "$n $stats $twinstats " >> refmac_Rplot.txt
+    # n Rwork Rfree FOM LL LLfree rmsBond Zbond rmsAngle Zangle rmsChiral "function value" vdw
+    # 1 2     3      4  5   6        7     8       9     10        11        12             13
     rm -f ${tempfile}stats.txt ${tempfile}twinstats.txt
 
     # trial Rw Rf FOM LL LLf rmsBond Zbond rmsAngle zAngle rmsChiral function vdw
@@ -489,23 +500,28 @@ EOF-refmac
             set minR = $R
             set minR_n = $n
             cp -p refmacout.pdb refmacout_minR.pdb
+            cp -p refmacout.mtz refmacout_minR.mtz
+            cp -p ${tempfile}.log refmacout_minR.log
         endif
         set test = `echo $Rfree $minRfree | awk '{print ($1<=$2)}'`
         if($test) then
             set minRfree = $Rfree
             set minRfree_n = $n
             cp -p refmacout.pdb refmacout_minRfree.pdb
+            cp -p refmacout.mtz refmacout_minRfree.mtz
+            cp -p ${tempfile}.log refmacout_minRfree.log
         endif
     endif
 
     # get refined partial structure /solvent scale factors
     tac ${tempfile}.log |&\
-    awk '/Cycle/ && s0 != ""{print s0,B0,s1,B1,s2,B2,s3,B3;exit}\
-         /function value/{funk=$NF}\
+    awk 's0 != ""{print s0,B0,s1,B1,s2,B2,s3,B3,s4,B4,s5,B5;exit}\
          /Overall               : scale = /{s0=$5;B0=$NF}\
          /Partial structure    1: scale = /{s1=$6;B1=$NF}\
          /Partial structure    2: scale = /{s2=$6;B2=$NF}\
-         /Partial structure    3: scale = /{s3=$6;B3=$NF}' |\
+         /Partial structure    3: scale = /{s3=$6;B3=$NF}\
+         /Partial structure    4: scale = /{s4=$6;B4=$NF}\
+         /Partial structure    5: scale = /{s5=$6;B5=$NF}' |\
     cat >! ${tempfile}scales.txt
     set scales = `cat ${tempfile}scales.txt`
     echo "$n $scales " | tee -a refmac_scales.log
@@ -588,12 +604,26 @@ EOF-refmac
         echo "estimated F000 value: $F000 electrons/cell"
     endif
 
+    # allow user-supplied every-cycle script
+    if( -x ./user_runme_script ) then
+        ./user_runme_script $n | tee user_runme_script.log
+        if( $status ) then
+          set BAD = "error from user_runme_script"
+          goto exit
+        endif
+        set test = `tail -n 1 user_runme_script.log`
+        if( "$test" == "converged" ) then
+          echo "user_runme_script says: converged"
+          set last_time = 1
+        endif
+    endif
+
     # dampen the shift if called for?
     if("$maxdXYZ" != "" || "$maxdocc" != "" || "$maxdB" != "") then
         set opts = ( $maxdXYZ $maxdocc $maxdB )
         if("$user_minB" != "") set opts = ( $opts minB=$user_maxB )
         if("$user_maxB" != "") set opts = ( $opts maxB=$user_maxB )
-echo "DEBUG: $opts"
+echo "DEBUG: damp_pdb.com $opts"
         damp_pdb.com last_refmac.pdb refmacout.pdb $opts |& tee ${tempfile}_dampdb.log
         mv refmacout.pdb undamped.pdb
         mv new.pdb refmacout.pdb
@@ -844,6 +874,7 @@ rmsd last_refmac.pdb refmacout.pdb
     endif
 
     if($?PRUNE_LOWOCC) then
+        echo "DEBUG: prune check"
         set minocc = `awk '/^ATOM|^HETAT/{print substr($0,55)+0}' $pdbin | sort -g |& head -1`
         set test = `echo $minocc $lowocc | awk '{print ($1+0<$2+0)}'`
         if($test) then
@@ -874,14 +905,17 @@ rmsd last_refmac.pdb refmacout.pdb
          fft hklin refmacout.mtz mapout fofc.map > /dev/null
         echo "scale factor -1" |\
          mapmask mapin fofc.map mapout fcfo.map > /dev/null
-        pick.com fcfo.map -top  | tee pick.log
-        set worst = `awk '/nearest neighbor/{getline;print $5;exit}' pick.log`
-        set test = `echo $worst $thresh | awk '{print ($1>$2)}'`
+        set worstpos = `echo | mapdump mapin fofc.map | grep dens | awk '/Max/{max=$NF} /Rms/{print max/$NF}'`
+        set worstneg = `echo | mapdump mapin fcfo.map | grep dens | awk '/Max/{max=$NF} /Rms/{print -max/$NF}'`
+        echo "worst peaks are $worstpos $worstneg sigma"
+        #pick.com fcfo.map -top1  | tee ${tempfile}pick.log
+        #set worst = `awk '/nearest neighbor/{getline;print $5;exit}' tee ${tempfile}pick.log`
+        set test = `echo $worstneg $thresh | awk '{print ((-$1)>$2)}'`
         echo -n "" >! baddie.txt
         if($test) then
-            pick.com -top=10 fcfo.map $pdbin 0.001A -fast | tee pick.log 
-            awk '/neighbor/,""' pick.log |\
-            awk '$5+0>=3 && $6+0<=0.5{print substr($0,58);exit}' >! baddie.txt
+            pick.com -top=10 fcfo.map $pdbin 0.0001A -fast | tee ${tempfile}pick.log 
+            awk '/neighbor/,""' ${tempfile}pick.log |\
+            awk -v d=$prune_dist '$5+0>=3 && $6+0<=d{print substr($0,58);exit}' >! baddie.txt
         endif
         set test = `awk 'NF>0' baddie.txt | wc -l`
         if($test) then

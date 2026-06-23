@@ -18,6 +18,9 @@ endif
 if("$2" =~ allres) then
     goto allres
 endif
+if("$2" =~ mcsc) then
+    goto mcsc
+endif
 
 cat $pdbfile |\
 awk '! /^ATOM|^HETAT/{next}\
@@ -119,4 +122,72 @@ awk 'BEGIN{print "occupancy refine"}\
   END{for(res in groups) print "occupancy group alts complete",groups[res];\
       for(i=1;i<=id;++i) if(! taken[i]) print "occupancy group alts incomplete",i}' |\
 tee refmac_opts_occ.txt
+
+exit
+
+
+mcsc:
+#  separately refine main-chain and side-chain occupancies of alt-confs.
+#  MC = N CA C O OXT H HA HA2 HA3, plus CB HB1 HB2 HB3 for ALA.
+#  SC = everything else in a protein residue.
+#  Each role's alts are emitted as a "complete" group (sums to 1 independently).
+#  Residues with <2 alts in a given role get no group for that role.
+#  Waters / chain S go into per-residue "alt w" incomplete groups, like the default mode.
+#  Non-water HETATM is dropped from this mode.
+
+cat $pdbfile |\
+awk '! /^ATOM|^HETAT/{next}\
+  {chain=substr($0,22,1);resnum=substr($0,23,4);conf=substr($0,17,1);\
+   restyp=substr($0,18,3);atom=substr($0,13,4);\
+   atm=atom;gsub(" ","",atm)}\
+  chain=="S" || restyp=="HOH" || restyp=="WAT"{\
+     cc=conf;if(cc==" ")cc="_";\
+     print "WAT",cc,chain,resnum,atm;next}\
+  conf==" "{next}\
+  /^HETAT/{next}\
+  {is_mc=(atm=="N"||atm=="CA"||atm=="C"||atm=="O"||atm=="OXT"||atm=="H"||atm=="HA"||atm=="HA2"||atm=="HA3");\
+   if(restyp=="ALA" && (atm=="CB"||atm=="HB1"||atm=="HB2"||atm=="HB3"))is_mc=1;\
+   role=(is_mc?"MC":"SC");\
+   print role,conf,chain,resnum,atm}' |\
+sort -u |\
+awk 'BEGIN{print "occupancy refine"}\
+  {role=$1;conf=$2;chain=$3;resnum=$4;atom=$5;\
+   key=role" "chain" "resnum;ckey=key" "conf}\
+  role=="WAT"{\
+     wkey=chain"|"resnum"|"conf;\
+     if(! wseen[wkey]){++wseen[wkey];++id;wid[++nw]=id;\
+        ch=(chain==" "?"":" chain "chain);\
+        altpart=(conf=="_" ? "" : " alt " conf);\
+        printf("occupancy group id %d%s residue %d%s\n",id,ch,resnum,altpart)}\
+     next}\
+  ! aseen[ckey,atom]{++aseen[ckey,atom];atoms[ckey]=atoms[ckey]" "atom}\
+  ! cseen[ckey]{++cseen[ckey];alts[key]=alts[key]" "conf;++nalt[key];\
+     if(! kseen[key]){++kseen[key];klist[++nk]=key}}\
+  END{\
+    for(i=1;i<=nk;++i){\
+      key=klist[i];\
+      if(nalt[key]<2)continue;\
+      split(key,kp," ");role=kp[1];chain=kp[2];resnum=kp[3];\
+      ch=(chain==" "?"":" chain "chain);\
+      na=split(alts[key],av," ");\
+      gids="";\
+      for(c=1;c<=na;++c){\
+        cc=av[c];ckey=key" "cc;\
+        ++id;\
+        nat=split(atoms[ckey],aa," ");\
+        for(a=1;a<=nat;++a){\
+          printf("occupancy group id %d%s residue %d alt %s atom %s\n",\
+             id,ch,resnum,cc,aa[a]);\
+        }\
+        gids=gids" "id;\
+      }\
+      printf("occupancy group alts complete%s\n",gids);\
+    }\
+    for(i=1;i<=nw;++i){\
+      printf("occupancy group alts incomplete %d\n",wid[i]);\
+    }\
+  }' |\
+tee refmac_opts_occ.txt
+
+exit
 
