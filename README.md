@@ -15,8 +15,8 @@ These are shell scripts, not a compiled package. You need:
 - **`tcsh`** (the scripts use `#! /bin/tcsh -f`)
 - **CCP4** on your `PATH`, providing `refmac5`, `mtzdump`, `mapdump`, `fft`,
   and `mapmask`
-- A handful of James Holton's companion `.com` scripts, also expected on your
-  `PATH`, depending on which features you use:
+- A handful of James Holton's companion scripts, bundled in this repo. Put the
+  repo directory on your `PATH` so the drivers can find them:
   - `pick.com` — map peak picking (pruning)
   - `damp_pdb.com` — caps per-atom coordinate/B/occupancy shifts
   - `add_waters.com` — automated water building (`refmac_rigamrol.com`)
