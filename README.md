@@ -41,6 +41,14 @@ Inputs are recognized by extension/type, so order does not matter:
 - `*.cif` / `*.lib` — restraint/library files (may be repeated)
 - an executable that prints `REFMAC` — used as the `refmac5` binary
 
+**Partial structures / bulk solvent.** Any partial-structure columns in the
+input MTZ are detected and used automatically — an amplitude column whose label
+contains `part` (type `F`) paired with its phase, e.g. `Fpart`/`PHIpart`. They
+are passed to refmac as `FPART`/`PHIP` with the appropriate `SCPART` scaling,
+and more than one partial structure is supported. These can add to, or replace,
+the default flat bulk solvent. To turn the default flat bulk solvent model off,
+add the refmac keyword `solvent no` (e.g. in `refmac_opts.txt`).
+
 Commonly used options (`key=value` unless noted):
 
 | Option | Meaning |
