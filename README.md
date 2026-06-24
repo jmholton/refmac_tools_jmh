@@ -14,7 +14,7 @@ These are shell scripts, not a compiled package. You need:
 
 - **`tcsh`** (the scripts use `#! /bin/tcsh -f`)
 - **CCP4** on your `PATH`, providing `refmac5`, `mtzdump`, `mapdump`, `fft`,
-  and `mapmask`
+  `mapmask`, and `cad`
 - A handful of James Holton's companion scripts, bundled in this repo. Put the
   repo directory on your `PATH` so the drivers can find them:
   - `pick.com` — map peak picking (pruning)
@@ -79,10 +79,15 @@ Shift thresholds can be given with a unit suffix: `0.01A` (coordinate),
 
 - `refmac_opts.txt` — extra refmac keywords passed through verbatim (`@`-style).
   Lines like `#LIBIN file.cif` add libraries.
-- `refmac_stop.txt` — containing `stop Y` asks the loop to stop cleanly (also
-  written automatically when `runtime=` is hit).
+- `refmac_stop.txt` — only active when `runtime=` is given: refmac is told to
+  watch this file (`kill refmac_stop.txt`), and a background timer writes
+  `stop Y` to it once the time limit is reached, triggering a clean exit that
+  salvages the best model.
 - `user_runme_script` — if present and executable, it is run each trial as
   `./user_runme_script <n>`; printing `converged` on its last line ends the loop.
+- `evaluate.com` — optional, **user-defined**. If present and executable, it is
+  run each trial as `./evaluate.com <model.pdb>`; a non-zero exit status signals
+  convergence (stop), while a zero status means keep refining.
 
 ### `refmac_occupancy_setup.com`
 
